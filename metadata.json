@@ -1,0 +1,6 @@
+{
+  "name": "Attendance Manager",
+  "description": "Secure Student Attendance Management App for college faculty, CRs, and administrators with role-based access, Asia/Kolkata live time, multi-period attendance, and automated reporting.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

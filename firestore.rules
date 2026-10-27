@@ -1,0 +1,77 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'ADMIN';
+    }
+
+    function isFaculty() {
+      return isAuthenticated() && getUserRole() == 'FACULTY';
+    }
+
+    function isCR() {
+      return isAuthenticated() && getUserRole() == 'CR';
+    }
+
+    // Users Collection
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAdmin();
+      allow update: if isAdmin() || (isAuthenticated() && request.auth.uid == userId);
+    }
+
+    // Configured Branches Collection
+    match /branches/{branchId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+
+    // Students Master Collection
+    match /students/{studentId} {
+      allow read: if isAuthenticated();
+      // CR and Admin can add, edit, and delete student records
+      allow create, update, delete: if isAdmin() || isCR();
+    }
+
+    // Attendance Records Collection
+    match /attendance/{attendanceId} {
+      allow read: if isAuthenticated();
+      // Faculty and CR can create new attendance records
+      allow create: if isAuthenticated() && (isFaculty() || isCR() || isAdmin());
+
+      // Modification Rules (Section 13):
+      // - CR cannot modify saved attendance.
+      // - Faculty can modify saved attendance only before 6:00 PM (18:00) IST on the same attendance date.
+      // - At or after 6:00 PM, saved attendance is permanently read-only.
+      allow update: if (isAdmin()) || (
+        isFaculty() &&
+        // Timestamp validation: within 18 hours of creation on same day
+        request.time < resource.data.createdAt + duration.value(18, 'h')
+      );
+
+      // Manual deletion of attendance is forbidden for all users (handled by automatic Cloud Function)
+      allow delete: if false;
+    }
+
+    // Attendance Details Collection
+    match /attendanceDetails/{detailId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && (isFaculty() || isCR() || isAdmin());
+      allow update: if (isAdmin()) || (
+        isFaculty() &&
+        request.time < resource.data.createdAt + duration.value(18, 'h')
+      );
+      allow delete: if false;
+    }
+  }
+}
